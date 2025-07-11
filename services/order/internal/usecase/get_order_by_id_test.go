@@ -4,7 +4,9 @@ import (
 	"testing"
 	"time"
 
+	pkgLogger "github.com/robrt95x/godops/pkg/logger"
 	"github.com/robrt95x/godops/services/order/internal/entity"
+	"github.com/robrt95x/godops/services/order/internal/errors"
 	"github.com/robrt95x/godops/services/order/internal/infra/memory"
 	"github.com/robrt95x/godops/services/order/internal/usecase"
 )
@@ -12,7 +14,8 @@ import (
 func TestGetOrderByIDCase_Execute(t *testing.T) {
 	// Setup
 	repo := memory.NewOrderMemoryRepository()
-	uc := usecase.NewGetOrderByIDCase(repo)
+	testLogger := pkgLogger.Setup(pkgLogger.NewDefaultConfig())
+	uc := usecase.NewGetOrderByIDCase(repo, testLogger)
 
 	// Create a test order
 	testOrder := &entity.Order{
@@ -69,7 +72,7 @@ func TestGetOrderByIDCase_Execute(t *testing.T) {
 		result, err := uc.Execute("non-existent-order")
 
 		// Assert
-		if err != usecase.ErrOrderNotFound {
+		if err != errors.ErrOrderNotFound {
 			t.Errorf("Expected ErrOrderNotFound, got %v", err)
 		}
 		if result != nil {
@@ -82,8 +85,8 @@ func TestGetOrderByIDCase_Execute(t *testing.T) {
 		result, err := uc.Execute("")
 
 		// Assert
-		if err != usecase.ErrInvalidOrderID {
-			t.Errorf("Expected ErrInvalidOrderID, got %v", err)
+		if err != errors.ErrOrderInvalidID {
+			t.Errorf("Expected ErrOrderInvalidID, got %v", err)
 		}
 		if result != nil {
 			t.Errorf("Expected nil result, got %v", result)
