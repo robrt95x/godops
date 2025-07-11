@@ -1,28 +1,44 @@
 package main
 
 import (
-	"database/sql"
 	"log"
 	"net/http"
 
-	_ "github.com/lib/pq"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/robrt95x/godops/services/order/internal/config"
 	httpDelivery "github.com/robrt95x/godops/services/order/internal/delivery/http"
-	"github.com/robrt95x/godops/services/order/internal/infra/postgres"
+	"github.com/robrt95x/godops/services/order/internal/infra"
 	"github.com/robrt95x/godops/services/order/internal/usecase"
 )
 
 func main() {
-	db, err := sql.Open("postgres", "postgres://user:pass@localhost:5432/godops?sslmode=disable")
+	// Load configuration
+	cfg := config.Load()
+	log.Printf("Starting order service with %s storage", cfg.StorageType)
+
+	// Create repository using factory
+	factory := infra.NewRepositoryFactory(cfg)
+	repo, err := factory.CreateOrderRepository()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Failed to create repository:", err)
 	}
 
-	repo := postgres.NewOrderPostgresRepository(db)
+	// Create use cases
 	createUC := usecase.NewCreateOrderCase(repo)
-	handler := httpDelivery.NewOrderHandler(createUC)
+	getOrderByIDUC := usecase.NewGetOrderByIDCase(repo)
+	handler := httpDelivery.NewOrderHandler(createUC, getOrderByIDUC)
 
-	http.HandleFunc("/orders", handler.CreateOrder)
+	// Setup router
+	r := chi.NewRouter()
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
 
-	log.Println("Starting server on :8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	r.Route("/orders", func(r chi.Router) {
+		r.Post("/", handler.CreateOrder)
+		r.Get("/{id}", handler.GetOrderByID)
+	})
+
+	log.Printf("Starting server on :%s", cfg.ServerPort)
+	log.Fatal(http.ListenAndServe(":"+cfg.ServerPort, r))
 }
